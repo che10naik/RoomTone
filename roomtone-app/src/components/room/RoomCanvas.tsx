@@ -121,22 +121,7 @@ function RadioBtn({ onClick, id }: { onClick?: () => void; id?: string }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// useDelayedValue — holds a value stable for `delayMs` before updating.
-// Used to sync the video background switch with the audio fade-out:
-// when a track changes, the audio fades over ~1s; we want the video to
-// start its own crossfade only AFTER that, not instantly.
-// ─────────────────────────────────────────────────────────────────────────────
-function useDelayedValue<T>(value: T, delayMs: number): T {
-  const [delayed, setDelayed] = useState<T>(value);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useEffect(() => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => setDelayed(value), delayMs);
-    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
-  }, [value, delayMs]);
-  return delayed;
-}
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // useVideoCrossfade — dual-video crossfade hook
@@ -237,11 +222,20 @@ export default function RoomCanvas({ room }: RoomCanvasProps) {
   const idx   = playback.currentTrackIndex;
   const track: Track | null = room.tracks[idx] ?? null;
 
+  // Auto-rotate tune knob whenever track changes
+  const prevIdx = useRef(idx);
+  useEffect(() => {
+    if (prevIdx.current !== idx) {
+      prevIdx.current = idx;
+      setTuneDeg(p => p + 72);
+    }
+  }, [idx]);
+
   const sceneId  = activeSceneId ?? track?.sceneId ?? 'sunny-day';
   const scene    = useMemo(() => getScene(sceneId as Parameters<typeof getScene>[0]), [sceneId]);
   const videoSrc = scene?.videoSrc ?? DEFAULT_VIDEO_SRC;
 
-  const handleNext = useCallback(() => { setTuneDeg(p => p + 72); nextTrack(); }, [nextTrack]);
+  const handleNext = useCallback(() => { nextTrack(); }, [nextTrack]);
   const needlePos  = room.tracks.length > 0 ? (idx + 1) / (room.tracks.length + 1) : 0.40;
 
   const hasNote  = Boolean(track?.note);
@@ -252,14 +246,10 @@ export default function RoomCanvas({ room }: RoomCanvasProps) {
   const songArtist = track ? track.artist : '';
   const noteText   = track?.note ?? '';
 
-  // Delay the video src change so it waits for audio to fade out first (~1.8s)
-  // then crossfade slowly (2.5s) for a cinematic feel
-  const delayedVideoSrc = useDelayedValue(videoSrc, 1800);
-
-  // Dual-video crossfade for card background
-  const { videoA: cardVideoA, videoB: cardVideoB } = useVideoCrossfade(delayedVideoSrc, 2500);
-  // Separate crossfade for the blurred backdrop (slightly slower)
-  const { videoA: bgVideoA, videoB: bgVideoB } = useVideoCrossfade(delayedVideoSrc, 2800);
+  // Dual-video crossfade for card background (smooth 1s crossfade immediately on track switch)
+  const { videoA: cardVideoA, videoB: cardVideoB } = useVideoCrossfade(videoSrc, 1000);
+  // Separate crossfade for the blurred backdrop
+  const { videoA: bgVideoA, videoB: bgVideoB } = useVideoCrossfade(videoSrc, 1000);
 
   return (
     <div style={{
@@ -287,9 +277,10 @@ export default function RoomCanvas({ room }: RoomCanvasProps) {
       <div
         style={{
           position: 'relative',
-          height: '100vh',
+          height: '100dvh',
           aspectRatio: '1086 / 1448',
           maxWidth: '100vw',
+          maxHeight: '100dvh',
           flexShrink: 0,
           containerType: 'inline-size',
           zIndex: 2,
@@ -303,10 +294,29 @@ export default function RoomCanvas({ room }: RoomCanvasProps) {
         <style>{`@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Nunito:wght@500;700&display=swap');`}</style>
 
         <header style={{
-          position: 'absolute', top: '2.5%', left: '4%', right: '4%',
-          display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-start',
+          position: 'absolute', top: '4.5%', left: '5%', right: '5%',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
           zIndex: 20,
         }}>
+          {/* Room Title displayed on top left */}
+          {room.title && (
+            <div style={{
+              fontFamily: "'Nunito', sans-serif",
+              fontSize: 'clamp(14px, 3.6cqw, 20px)',
+              fontWeight: 600,
+              fontStyle: 'normal',
+              color: 'rgba(255, 242, 218, 0.92)',
+              textShadow: '0 2px 10px rgba(0,0,0,0.8), 0 0 10px rgba(210,150,50,0.3)',
+              maxWidth: '55%',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              letterSpacing: '0.01em',
+            }}>
+              {room.title}
+            </div>
+          )}
+
           <a
             href="/create"
             style={{

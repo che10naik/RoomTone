@@ -133,8 +133,8 @@ function StepSongs({
         Choose your songs.
       </h2>
       <p style={{ fontFamily: "'Inter', sans-serif", fontSize: '12px', color: 'rgba(180,155,110,0.5)', marginBottom: '28px' }}>
-        Pick at least 1 song. Each becomes a moment.{' '}
-        <span style={{ color: 'rgba(210,155,50,0.65)' }}>{selected.length} selected</span>
+        Pick 1–4 songs. Each becomes a moment.{' '}
+        <span style={{ color: 'rgba(210,155,50,0.65)' }}>{selected.length}/4 selected</span>
       </p>
 
       {/* Search */}
@@ -162,6 +162,7 @@ function StepSongs({
         <AnimatePresence>
           {results.map((r, i) => {
             const chosen = isChosen(r.trackId);
+            const disabled = !chosen && selected.length >= 4;
             return (
               <motion.div
                 key={r.trackId}
@@ -170,16 +171,16 @@ function StepSongs({
                 transition={{ delay: i * 0.04 }}
                 onClick={() => {
                   if (chosen) onRemove(r.trackId);
-                  else if (selected.length < 50) onSelect(r);
+                  else if (selected.length < 4) onSelect(r);
                 }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: '12px',
                   padding: '9px 10px', borderRadius: '5px', marginBottom: '3px',
                   background: chosen ? 'rgba(210,155,50,0.1)' : 'rgba(255,255,255,0.025)',
                   border: `1px solid ${chosen ? 'rgba(210,155,50,0.3)' : 'transparent'}`,
-                  cursor: chosen ? 'pointer' : 'pointer',
+                  cursor: disabled ? 'not-allowed' : 'pointer',
                   transition: 'all 0.2s ease',
-                  opacity: 1,
+                  opacity: disabled ? 0.4 : 1,
                 }}
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -391,7 +392,7 @@ export default function CreatePage() {
   const [slug, setSlug]   = useState('');
 
   const addTrack = useCallback((r: ItunesSearchResult) => {
-    setTracks(p => p.length < 50 ? [...p, { result: r, note: '', sceneId: 'sunny-day' }] : p);
+    setTracks(p => p.length < 4 ? [...p, { result: r, note: '', sceneId: 'sunny-day' }] : p);
   }, []);
 
   const removeTrack = useCallback((id: number) => {
